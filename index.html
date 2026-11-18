@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#080c18">
+<title>Battle Arena</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080c18;color:#f4f6ff;font-family:system-ui,Segoe UI,Arial;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:16px}
+main{width:min(100%,1000px)}header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+h1{font-size:clamp(24px,4vw,38px);margin:0;letter-spacing:1px}h1 span{color:#69e0ff}
+.panel{background:#10182b;border:1px solid #253451;border-radius:14px;padding:12px 16px}
+.stats{display:flex;gap:12px;align-items:center}.stat{min-width:110px}.stat small{color:#a7b5d2;display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px}.stat strong{font-size:18px}
+#arena{width:100%;display:block;background:#0b1222;border:1px solid #253451;border-radius:14px;touch-action:none}
+.footer{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;color:#a7b5d2;font-size:13px}
+button{background:#203458;color:white;border:1px solid #385481;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer}button:hover{background:#2c4775}
+.overlay{position:fixed;inset:0;background:#050812cc;display:none;align-items:center;justify-content:center;padding:20px;z-index:3}.overlay.show{display:flex}.modal{text-align:center;max-width:420px;width:100%;padding:28px;background:#111a2d;border:1px solid #2d4268;border-radius:20px}.modal h2{font-size:32px;margin:0 0 8px}.modal p{color:#a7b5d2}
+.mobile{display:none;justify-content:space-between;align-items:center;margin-top:12px;gap:20px;user-select:none}.pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px}.pad button,.attack{padding:0;font-size:20px;touch-action:none}.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}.attack{width:92px;height:92px;border-radius:50%;background:#87364e;border-color:#ca5977}
+@media(max-width:700px){header{align-items:flex-start}.stats{width:100%;justify-content:space-between}.stat{min-width:0}.mobile{display:flex}.footer .tips{display:none}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>⚔️ BATTLE <span>ARENA</span></h1><div class="stats panel"><div class="stat"><small>Dein Leben</small><strong id="hp">100</strong></div><div class="stat"><small>Gegner</small><strong id="enemies">3</strong></div><div class="stat"><small>Runde</small><strong id="round">1</strong></div></div></header>
+<canvas id="arena" width="960" height="560" aria-label="Battle Arena Spiel"></canvas>
+<div class="mobile" aria-label="Touch-Steuerung"><div class="pad"><button class="up" data-key="w">▲</button><button class="left" data-key="a">◀</button><button class="down" data-key="s">▼</button><button class="right" data-key="d">▶</button></div><button class="attack" data-key=" ">⚡<br>Attack</button></div>
+<div class="footer"><div class="tips">Steuerung: <b>WASD</b> bewegen · <b>SPACE</b> Angriff · Gegner besiegen!</div><button id="restart">↻ Neustart</button></div>
+</main>
+<div class="overlay" id="overlay"><div class="modal"><h2 id="result">Arena beendet</h2><p id="resultText"></p><button id="playAgain">Noch eine Runde</button></div></div>
+<script>
+(()=>{
+const canvas=document.getElementById('arena'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+const hpEl=document.getElementById('hp'),enEl=document.getElementById('enemies'),roundEl=document.getElementById('round');
+const overlay=document.getElementById('overlay'),result=document.getElementById('result'),resultText=document.getElementById('resultText');
+const keys=new Set();let player,enemies,particles,attackCooldown,frame,gameOver,round=1;
+const rand=(a,b)=>Math.random()*(b-a)+a, dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function init(){player={x:W/2,y:H/2,r:16,hp:100,dir:0,flash:0};enemies=Array.from({length:3},(_,i)=>({x:rand(100,W-100),y:rand(80,H-80),r:15,hp:45,max:45,speed:rand(1.15,1.5),cool:rand(20,70),flash:0,phase:i}));particles=[];attackCooldown=0;frame=0;gameOver=false;overlay.classList.remove('show');roundEl.textContent=round;sync();draw()}
+function sync(){hpEl.textContent=Math.max(0,Math.ceil(player.hp));enEl.textContent=enemies.length}
+function circle(x,y,r,color){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill()}
+function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#0b1222';ctx.fillRect(0,0,W,H);
+ctx.strokeStyle='#17243b';ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+ctx.strokeStyle='#2a4163';ctx.lineWidth=4;ctx.beginPath();ctx.arc(W/2,H/2,220,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#1d304b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(W/2,H/2,150,0,Math.PI*2);ctx.stroke();
+particles.forEach(p=>circle(p.x,p.y,p.r,p.color));
+enemies.forEach(e=>{circle(e.x,e.y,e.r+4,'#291a32');circle(e.x,e.y,e.r,e.flash?'#fff':'#e86b9c');circle(e.x-5,e.y-3,3,'#521e41');circle(e.x+5,e.y-3,3,'#521e41');ctx.fillStyle='#182034';ctx.fillRect(e.x-20,e.y-28,40,5);ctx.fillStyle='#ff719d';ctx.fillRect(e.x-20,e.y-28,40*(e.hp/e.max),5)});
+if(player){circle(player.x,player.y,player.r+5,'#133749');circle(player.x,player.y,player.r,player.flash?'#fff':'#64dcff');circle(player.x-5,player.y-4,3,'#12425c');circle(player.x+5,player.y-4,3,'#12425c');if(attackCooldown>12){ctx.strokeStyle='#91f2ff';ctx.lineWidth=7;ctx.beginPath();ctx.arc(player.x,player.y,48,player.dir-.85,player.dir+.85);ctx.stroke()}}
+}
+function attack(){if(gameOver||attackCooldown>0)return;attackCooldown=26;enemies.forEach(e=>{const d=dist(player,e),a=Math.atan2(e.y-player.y,e.x-player.x),diff=Math.atan2(Math.sin(a-player.dir),Math.cos(a-player.dir));if(d<82&&Math.abs(diff)<1.25){e.hp-=25;e.flash=7;const push=28;e.x+=Math.cos(a)*push;e.y+=Math.sin(a)*push;for(let i=0;i<9;i++)particles.push({x:e.x,y:e.y,r:rand(2,5),color:'#ff82b0',vx:rand(-3,3),vy:rand(-3,3),life:24})}});enemies=enemies.filter(e=>e.hp>0);sync();if(!enemies.length)finish(true)}
+function finish(win){gameOver=true;result.textContent=win?'🏆 Sieg!':'💫 Runde vorbei';resultText.textContent=win?'Du hast alle Gegner besiegt!':'Du kannst es gleich noch einmal versuchen.';overlay.classList.add('show')}
+function update(){if(gameOver)return;frame++;if(attackCooldown>0)attackCooldown--;if(player.flash>0)player.flash--;let dx=(keys.has('d')||keys.has('arrowright')?1:0)-(keys.has('a')||keys.has('arrowleft')?1:0),dy=(keys.has('s')||keys.has('arrowdown')?1:0)-(keys.has('w')||keys.has('arrowup')?1:0);if(dx||dy){let l=Math.hypot(dx,dy);dx/=l;dy/=l;player.x+=dx*3.5;player.y+=dy*3.5;player.dir=Math.atan2(dy,dx)}
+player.x=Math.max(24,Math.min(W-24,player.x));player.y=Math.max(24,Math.min(H-24,player.y));
+enemies.forEach(e=>{e.cool--;if(e.flash>0)e.flash--;const d=dist(player,e),a=Math.atan2(player.y-e.y,player.x-e.x);if(d>45){e.x+=Math.cos(a)*e.speed;e.y+=Math.sin(a)*e.speed}else if(e.cool<=0){player.hp-=8;e.cool=60;player.flash=8;for(let i=0;i<7;i++)particles.push({x:player.x,y:player.y,r:rand(2,4),color:'#78e9ff',vx:rand(-3,3),vy:rand(-3,3),life:20});sync();if(player.hp<=0)finish(false)}});
+particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life--;p.r*=.97});particles=particles.filter(p=>p.life>0);draw()}
+function loop(){update();if(!gameOver)requestAnimationFrame(loop)}
+function start(){init();requestAnimationFrame(loop)}
+document.addEventListener('keydown',e=>{let k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();keys.add(k);if(k===' ')attack()});
+document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys.add(k);if(k===' ')attack()});['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>keys.delete(k)))});
+document.getElementById('restart').onclick=()=>{round++;start()};document.getElementById('playAgain').onclick=()=>{round++;start()};
+start();
+})();
+</script>
+</body>
+</html>
